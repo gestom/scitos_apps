@@ -27,6 +27,7 @@
 STrackedObject own,station;
 bool useLaser = false;
 double adjustRotateGain = 1.0;
+int numScans = 0;
 
 float ptuPan = 0.0;
 float ptuTilt = -15.0;
@@ -785,7 +786,7 @@ void mainLoop()
 
 void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 {
-	if (useLaser && state == STATE_DOCK){
+	//if (useLaser && state == STATE_DOCK){
 		size_t num_ranges = scan_msg->ranges.size();
 		float x[num_ranges];
 		float y[num_ranges];
@@ -793,6 +794,7 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 		float s[num_ranges];
 		bool m[num_ranges];
 		float angle;
+		//convert to 3D
 		for (int i = 0; i <= num_ranges; i++){
 			angle = scan_msg->angle_min+i*scan_msg->angle_increment;
 			x[i] = scan_msg->ranges[i]*cos(angle);
@@ -801,6 +803,8 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 			m[i] = true;
 		}
 		float dx,dy;
+
+		//rank local minima
 		for (int i = 0; i <= num_ranges; i++)
 		{
 			s[i] = 0;
@@ -810,6 +814,8 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 				if (sqrt(dx*dx+dy*dy) < 0.2 && d[i]<d[j]) s[i]++; 
 			}
 		}
+
+		//find local minimum
 		int index = -1;
 		int best = 0;
 		for (int i = 0; i <= num_ranges; i++)
@@ -818,16 +824,97 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 				best = s[i];
 				index = i;		
 			}
+			printf("SCAN %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
 		}
+		printf("BEST %05i %03i %.3f %.3f\n",numScans,index,x[index],y[index]);
+		
+		//estimate the station 'tip' position
+		float sx =0;
+		float sy = 0;
+		int numPoints = 0;
+		for (int i = 0; i <= num_ranges; i++){
+			if (fabs(x[i]-x[index]) < 0.015 && fabs(y[i]-y[index])<0.05)
+			{
+				sx += x[i];
+				sy += y[i];
+				printf("TIP %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+				numPoints++;
+			}
+		}
+		sx /= numPoints;
+		sy /= numPoints;
+				
+		//retrieve station left
+		float srx = 0;
+		float sry = 0;
+		int numRight = 0;
+		float slx = 0;
+		float sly = 0;
+		int numLeft = 0;
+		for (int i = 0; i <= num_ranges; i++)
+		{
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2){
+					printf("LEFT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+					slx+=x[i];
+					sly+=y[i];
+					numLeft++;
+				}
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2){
+				       	printf("RIGHT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+					srx+=x[i];
+					sry+=y[i];
+					numRight++;
+				}
+		}
+		srx /= numRight;
+		sry /= numRight;
+		slx /= numLeft;
+		sly /= numLeft;
+		
+		float rxx,rxy,ryy,lxx,lyy,lxy;
+		rxx=rxy=ryy=lxx=lyy=lxy=0;
+		for (int i = 0; i <= num_ranges; i++)
+		{
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2)
+				{
+					lxx += (x[i]-slx)*(x[i]-slx);
+					lxy += (x[i]-slx)*(y[i]-sly);
+					lyy += (y[i]-sly)*(y[i]-sly);
+				}
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2)
+				{
+					rxx += (x[i]-srx)*(x[i]-srx);
+					rxy += (x[i]-srx)*(y[i]-sry);
+					ryy += (y[i]-sry)*(y[i]-sry);
+				}
+		}
+		rxx /= numRight;	
+		rxy /= numRight;	
+		ryy /= numRight;	
+		lxx /= numLeft;	
+		lxy /= numLeft;	
+		lyy /= numLeft;	
+	
+		printf("RIGT: %.3f %.3f \n",srx,sry);
+		printf("COVAR: %f %f %f\n",rxx,rxy,ryy);
+		float rd0 = (rxx+ryy)*(rxx+ryy)-4*(rxx*ryy-rxy*rxy);
+		float re0 = ((rxx+ryy)+sqrt(rd0))/2.0;
+		float re1 = ((rxx+ryy)-sqrt(rd0))/2.0;
+		printf("EIGEN: %f %f %f\n",re0,re1,re0/re1);
+	
+
+		printf("ANGLE: %f %f %f %f\n",atan2(rxx,rxy),atan2(lxx,lxy),atan2(rxx,rxy)-atan2(lxx,lxy),(atan2(rxx,rxy)+atan2(lxx,lxy))/2.0);
+
 		x[index] -= 0.1;
-		ROS_INFO("Final approach performed by laser to position %.3f %.3f - vision reports %.3f %.3f.",x[index],y[index],station.x,station.y);
+		ROS_INFO("Final approach performed by laser to position %.3f %.3f - vision reports %.3f %.3f.",sx,sy,station.x,station.y);
 		station.x = x[index]; 
 		station.y = y[index];
 		if (robot->dockLaser(station)){
 			state = STATE_WAIT;
 			robot->measure(NULL,NULL,4*maxMeasurements,false);
 		}
-	}
+		numScans++;
+	//}
 }
 
 int main(int argc,char* argv[])
