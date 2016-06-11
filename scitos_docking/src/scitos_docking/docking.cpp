@@ -25,7 +25,7 @@
 #define MAX_PATTERNS 10 
 
 STrackedObject own,station;
-bool useLaser = false;
+bool useLaser = true;
 double adjustRotateGain = 1.0;
 int numScans = 0;
 
@@ -786,7 +786,7 @@ void mainLoop()
 
 void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 {
-	//if (useLaser && state == STATE_DOCK){
+	if (useLaser && state == STATE_DOCK){
 		size_t num_ranges = scan_msg->ranges.size();
 		float x[num_ranges];
 		float y[num_ranges];
@@ -824,9 +824,9 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 				best = s[i];
 				index = i;		
 			}
-			printf("SCAN %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+			//printf("SCAN %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
 		}
-		printf("BEST %05i %03i %.3f %.3f\n",numScans,index,x[index],y[index]);
+		//printf("BEST %05i %03i %.3f %.3f\n",numScans,index,x[index],y[index]);
 		
 		//estimate the station 'tip' position
 		float sx =0;
@@ -837,30 +837,31 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 			{
 				sx += x[i];
 				sy += y[i];
-				printf("TIP %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+				//printf("TIP %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
 				numPoints++;
 			}
 		}
 		sx /= numPoints;
 		sy /= numPoints;
 				
-		//retrieve station left
+		//retrieve station left and right line
 		float srx = 0;
 		float sry = 0;
 		int numRight = 0;
 		float slx = 0;
 		float sly = 0;
 		int numLeft = 0;
+		float limit = d[index]+0.4;
 		for (int i = 0; i <= num_ranges; i++)
 		{
-				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2){
-					printf("LEFT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2 && d[i] < limit){
+		//			printf("LEFT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
 					slx+=x[i];
 					sly+=y[i];
 					numLeft++;
 				}
-				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2){
-				       	printf("RIGHT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2 && d[i] < limit){
+		//		       	printf("RIGHT %05i %03i %.3f %.3f\n",numScans,i,x[i],y[i]);
 					srx+=x[i];
 					sry+=y[i];
 					numRight++;
@@ -870,18 +871,19 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 		sry /= numRight;
 		slx /= numLeft;
 		sly /= numLeft;
-		
+
+		//retrieve the angles
 		float rxx,rxy,ryy,lxx,lyy,lxy;
 		rxx=rxy=ryy=lxx=lyy=lxy=0;
 		for (int i = 0; i <= num_ranges; i++)
 		{
-				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2)
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && y[i]-sy > 0.02 && y[i]-sy < 0.2 && d[i] < limit)
 				{
 					lxx += (x[i]-slx)*(x[i]-slx);
 					lxy += (x[i]-slx)*(y[i]-sly);
 					lyy += (y[i]-sly)*(y[i]-sly);
 				}
-				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2)
+				if (x[i]-sx > 0.02 && x[i]-sx < 0.13 && sy-y[i] > 0.02 && sy-y[i] < 0.2 && d[i] < limit)
 				{
 					rxx += (x[i]-srx)*(x[i]-srx);
 					rxy += (x[i]-srx)*(y[i]-sry);
@@ -895,26 +897,37 @@ void scanCallback (const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 		lxy /= numLeft;	
 		lyy /= numLeft;	
 	
-		printf("RIGT: %.3f %.3f \n",srx,sry);
-		printf("COVAR: %f %f %f\n",rxx,rxy,ryy);
+		//printf("RIGT: %.3f %.3f %i \n",srx,sry,numRight);
+		//printf("COVAR: %f %f %f\n",rxx,rxy,ryy);
 		float rd0 = (rxx+ryy)*(rxx+ryy)-4*(rxx*ryy-rxy*rxy);
+		if (rd0 < 0)rd0 = 0;
 		float re0 = ((rxx+ryy)+sqrt(rd0))/2.0;
 		float re1 = ((rxx+ryy)-sqrt(rd0))/2.0;
-		printf("EIGEN: %f %f %f\n",re0,re1,re0/re1);
-	
+		//printf("EIGEN: %f %f %f\n",re0,re1,re0/re1);
 
-		printf("ANGLE: %f %f %f %f\n",atan2(rxx,rxy),atan2(lxx,lxy),atan2(rxx,rxy)-atan2(lxx,lxy),(atan2(rxx,rxy)+atan2(lxx,lxy))/2.0);
+		float ld0 = (lxx+lyy)*(lxx+lyy)-4*(lxx*lyy-lxy*lxy);
+		if (ld0 < 0)ld0 = 0;
+		float le0 = ((lxx+lyy)+sqrt(ld0))/2.0;
+		float le1 = ((lxx+lyy)-sqrt(ld0))/2.0;
+		rxx-=re1;
+		lxx-=le1;
 
-		x[index] -= 0.1;
+		float la = atan2(-lxx,lxy); 
+		float ra = atan2(-rxx,rxy); 
+		//printf("ANGLE: %f %f %f %f\n",la,ra,la-ra,(ra+la)/2.0);
+		//printf("RESULT: %f %f %f \n",sx,sy,(ra+la)/2.0+M_PI/2);
+
 		ROS_INFO("Final approach performed by laser to position %.3f %.3f - vision reports %.3f %.3f.",sx,sy,station.x,station.y);
-		station.x = x[index]; 
-		station.y = y[index];
+		station.x = sx-0.1; 
+		station.y = sy;
+		station.yaw = -((ra+la)/2.0+M_PI/2);
+		//printf("Residual angle: %.f %.f %.f\n");
 		if (robot->dockLaser(station)){
 			state = STATE_WAIT;
 			robot->measure(NULL,NULL,4*maxMeasurements,false);
 		}
 		numScans++;
-	//}
+	}
 }
 
 int main(int argc,char* argv[])
@@ -935,6 +948,7 @@ int main(int argc,char* argv[])
 	image_transport::Subscriber subdepth = it.subscribe("head_xtion/depth/image_rect", 1, depthCallback);
 	nh->param("positionUpdate",positionUpdate,false);
 	nh->param("useLaser",useLaser,true);
+	if (useLaser) dockingPrecision+=0.2;
 	nh->param("adjustRotateGain",adjustRotateGain,1.0);
         imdebug = it.advertise("/charging/processedimage", 1);
 	ros::Subscriber subodo = nh->subscribe("odom", 1, odomCallback);

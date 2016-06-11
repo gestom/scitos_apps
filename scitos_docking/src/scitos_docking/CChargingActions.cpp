@@ -382,10 +382,10 @@ bool CChargingActions::adjust(STrackedObject station,float in,float tol)
 bool CChargingActions::dockLaser(STrackedObject station)
 {
 	bool complete = false;
-	base_cmd.linear.x = (station.x - 5*fabs(station.y)+0.3)*0.2;
-	if (fabs(station.y) > 0.02) base_cmd.linear.x = 0; 
+	base_cmd.linear.x = 0.1;
 	base_cmd.angular.z = station.y;
-	base_cmd.angular.z = atan2(station.y,station.x);
+	base_cmd.angular.z = atan2(station.y,station.x)+station.yaw;
+	if (fabs(base_cmd.angular.z) > 0.05) base_cmd.linear.x = 0; 
 	if (station.x < 0.025){
 		complete = true;
 		base_cmd.linear.x = base_cmd.angular.z = 0;
