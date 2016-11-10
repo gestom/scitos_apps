@@ -2,6 +2,70 @@
 Changelog for package scitos_docking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2016-11-03)
+------------------
+* Merge pull request `#157 <https://github.com/strands-project/scitos_apps/issues/157>`_ from gestom/hydro-devel
+  Docking ends up in a 'safe' position
+* Docking end up far away from station in the case of a timeout
+* Safe timeout
+* Contributors: Christian Dondrup, Nick Hawes, Tom Krajnik
+
+0.1.0 (2016-05-24)
+------------------
+* Merge pull request `#156 <https://github.com/strands-project/scitos_apps/issues/156>`_ from gestom/hydro-devel
+  Docking now supports up to 4 different stations
+* Station identification distance increased
+* Position injection when undocking
+* Incorporated in calibration
+* Docking now recognises 4 different stations. Docking is backwards compatible.
+* Contributors: Nick Hawes, Tom Krajnik
+
+0.0.23 (2016-05-03)
+-------------------
+* Depth image decoding fixed.
+* Position injection precision increased by resolving transform bug
+* Contributors: Christian Dondrup, Tom Krajnik
+
+0.0.22 (2015-12-10)
+-------------------
+* reverting df7aea03f367933eb8171b8930cabce60349bc0a
+  as discussed in https://github.com/strands-project/scitos_apps/commit/df7aea03f367933eb8171b8930cabce60349bc0a#commitcomment-14897218 and https://github.com/strands-project/strands_systems/pull/114#issuecomment-163432083 this needs to be reverted.
+* Contributors: Marc Hanheide
+
+0.0.21 (2015-12-07)
+-------------------
+* Fixing Chaos.
+  Actually adapting the topic name to the change in openni2
+* Contributors: Karl Review
+
+0.0.20 (2015-05-22)
+-------------------
+* Merge branch 'hydro-devel' of https://github.com/strands-project/scitos_apps into dyn_subscription
+* keep subscribed to most topics
+* Contributors: Marc Hanheide
+
+0.0.19 (2015-05-22)
+-------------------
+* Revert "(un)subscribe from all the topics"
+* (un)subscribe from all the topics
+* Contributors: Marc Hanheide
+
+0.0.18 (2015-05-17)
+-------------------
+* Adding position injection to launch file.
+  Closes `#138 <https://github.com/strands-project/scitos_apps/issues/138>`_
+* Contributors: Christian Dondrup
+
+0.0.16 (2015-03-19)
+-------------------
+* Avoiding string-conversion-related warnings.
+* Contributors: Tom Krajnik
+
+0.0.15 (2015-03-18)
+-------------------
+* Docking station position parametrized - allows to use maps with arbitrary docking station position. Circle detection sensitivity increased - allows to dock in adverse lighting conditions. Initial stages of docking do not check if the robot behaves as expected anymore (this was included to verify if other nodes still send commands to the robot or if the robot was moving when charging was initiated) - improves interaction with higher navigation layers that seemed to activate the charging while the robot was still moving.
+* Contributors: Tom Krajnik
+
 0.0.14 (2014-12-17)
 -------------------
 
